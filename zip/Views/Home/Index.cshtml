@@ -1,0 +1,277 @@
+﻿
+<!DOCTYPE html>
+<html>
+<head>
+    <title>xd</title>
+    <meta charset="utf-8" />
+    <script type="text/javascript" src="~/jss/jszip.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+    <script src="~/Scripts/jquery-1.10.2.min.js"></script>
+    <link href="~/Content/Site.css" rel="stylesheet" />
+    <link href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css" rel="stylesheet" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/2.0.2/anime.min.js"></script>
+
+
+</head>
+<body>
+
+    <div class="row files" id="files1">
+        <br /><br /><br /><br /><br /><br /><br />
+        <span class="btn btn-default btn-file">
+            Yükle  <input type="file" name="files1" multiple />
+        </span>
+        <br />
+        <ul class="fileList"></ul>
+    </div>
+
+    <div id="ziplen"class="ml2" style="display:none;"><h2>Zipleniyor...</h2></div>
+    <div id="form" style="display:none;" >
+        
+        <h2>İndiriliyor</h2>
+        <div class="progress" id="upprog">
+           
+            <div id="updynamic" class="progress-bar progress-bar-success progress-bar-striped active" role="progressbar" data-id="0" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" style="width: 0%">
+                <span id="upcurrent-progress"></span>
+            </div>
+        </div>
+        <h2>Birleştiriliyor</h2>
+        <div class="progress" id="prog">
+           
+            <div id="dynamic" class="progress-bar progress-bar-success progress-bar-striped active" role="progressbar" data-id="0" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" style="width: 0%">
+                <span id="current-progress"></span>
+            </div>
+        </div>
+    </div>
+    <button id="zip" onclick="tıkla()">Dosyayı Ziple</button>
+
+    <script type="text/javascript">
+
+        function ForFd(FD,t) {
+
+            $.ajax({
+                type: "POST",
+                url: '@Url.Action("Save", "Home")',
+                contentType: false,
+                processData: false,
+                data: FD,
+                success: function (response) {
+                    var current_progress = $("#dynamic").data("id");
+                    var interval = setInterval(function () {
+                        if (current_progress >= 100) {
+                            $("#dynamic").data("id", "100")
+                              .css("width", "100" + "%")
+                              .attr("aria-valuenow", "100")
+                              .text("100" + "% complete");
+                            document.getElementById('dynamic').className = "progress-bar progress-bar-success";
+                        }
+                        else {
+                            current_progress += t;
+                            $("#dynamic")
+                            .css("width", current_progress + "%")
+                            .attr("aria-valuenow", current_progress)
+                            .text(current_progress + "%")
+                            .data("id", current_progress);
+                        }
+                    }, 10);
+                }
+            });
+        }
+        function UploadFileChunk(Chunk, FileName, TotalParts, Part) {
+
+            var FD = new FormData();
+            FD.append('file', Chunk, FileName);
+            var t = (100 / TotalParts);
+            ForFd(FD, t);
+        }
+
+        function UploadFile(TargetFile) {
+            
+            // create array to store the buffer chunks
+            var FileChunk = [];
+            // the file object itself that we will work with
+            var file = TargetFile;
+            // set up other initial vars
+            var MaxFileSizeMB = 5;
+            var BufferChunkSize = MaxFileSizeMB * (1024 * 1024);
+            var ReadBuffer_Size = 1024;
+            var FileStreamPos = 0;
+            // set the initial chunk length
+            var EndPos = BufferChunkSize;
+            var Size = file.size;
+            var dosya_adedi = Size / (ReadBuffer_Size * ReadBuffer_Size);
+            var dosya_adedi = Math.ceil(dosya_adedi);
+            var sayac = 0;
+            // add to the FileChunk array until we get to the end of the file
+            while (FileStreamPos < Size) {
+
+
+                sayac++;
+                var current_progress = (100 / dosya_adedi) * sayac;
+                var interval = setInterval(function () {
+                    if (current_progress >= 100) {
+                        $("#updynamic").data("id", "100")
+                          .css("width", "100" + "%")
+                          .attr("aria-valuenow", "100")
+                          .text("100" + "% complete");
+                        document.getElementById('updynamic').className = "progress-bar progress-bar-success";
+                    }
+                    else {
+                        current_progress += t;
+                        $("#updynamic")
+                        .css("width", current_progress + "%")
+                        .attr("aria-valuenow", current_progress)
+                        .text(current_progress + "%")
+                        .data("id", current_progress);
+                    }
+                }, 10);
+
+                
+                // "slice" the file from the starting position/offset, to  the required length
+                FileChunk.push(file.slice(FileStreamPos, EndPos));
+                FileStreamPos = EndPos; // jump by the amount read
+                EndPos = FileStreamPos + BufferChunkSize; // set next chunk length
+            }
+            // get total number of "files" we will be sending
+            var TotalParts = FileChunk.length;
+            var PartCount = 0;
+            // loop through, pulling the first item from the array each time and sending it
+            while (chunk = FileChunk.shift()) {
+                PartCount++;
+                // file name convention
+
+                var FilePartName = file.name + ".part_" + PartCount + "." + TotalParts;
+                var t = (100 / TotalParts) * PartCount;
+                UploadFileChunk(chunk, FilePartName,t);
+
+
+            }
+
+
+        }
+        function urldecode(str) {
+            return decodeURIComponent((str + '').replace(/\+/g, '%20'));
+        }
+        function blobToFile(theBlob) {
+            theBlob.lastModifiedDate = new Date();
+            theBlob.name = "dosya.zip";
+            return theBlob;
+        }
+
+        $.fn.fileUploader = function (filesToUpload, sectionIdentifier) {
+            var fileIdCounter = 0;
+
+            this.closest(".files").change(function (evt) {
+                var output = [];
+
+                for (var i = 0; i < evt.target.files.length; i++) {
+                    fileIdCounter++;
+                    var file = evt.target.files[i];
+                    var fileId = sectionIdentifier + fileIdCounter;
+
+                    filesToUpload.push({
+                        id: fileId,
+                        file: file
+                    });
+
+                    var removeLink = "<a class=\"removeFile\" href=\"#\" data-fileid=\"" + fileId + "\">Sil</a>";
+
+                    output.push("<li><strong>", urldecode(escape(file.name)), "</strong> - ", file.size, " bytes. &nbsp; &nbsp; ", removeLink, "</li> ");
+                };
+
+                $(this).children(".fileList")
+                    .append(output.join(""));
+
+                //reset the input to null - nice little chrome bug!
+                evt.target.value = null;
+            });
+
+            $(this).on("click", ".removeFile", function (e) {
+                e.preventDefault();
+
+                var fileId = $(this).parent().children("a").data("fileid");
+
+                // loop through the files array and check if the name of that file matches FileName
+                // and get the index of the match
+                for (var i = 0; i < filesToUpload.length; ++i) {
+                    if (filesToUpload[i].id === fileId)
+                        filesToUpload.splice(i, 1);
+                }
+
+                $(this).parent().remove();
+
+            });
+
+            this.clear = function () {
+                for (var i = 0; i < filesToUpload.length; ++i) {
+                    if (filesToUpload[i].id.indexOf(sectionIdentifier) >= 0)
+                        filesToUpload.splice(i, 1);
+                }
+
+                $(this).children(".fileList").empty();
+
+            }
+
+            return this;
+        };
+
+
+        var filesToUpload = [];
+        var files1Uploader = $("#files1").fileUploader(filesToUpload, "files1");
+
+        function tıkla() {
+            document.getElementById('ziplen').style.display = "block";
+            $('.ml2').each(function () {
+                $(this).html($(this).text().replace(/([^\x00-\x80]|\w)/g, "<span class='letter'>$&</span>"));
+            });
+
+            anime.timeline({ loop: true })
+              .add({
+                  targets: '.ml2 .letter',
+                  scale: [4, 1],
+                  opacity: [0, 1],
+                  translateZ: 0,
+                  easing: "easeOutExpo",
+                  duration: 950,
+                  delay: function (el, i) {
+                      return 70 * i;
+                  }
+              }).add({
+                  targets: '.ml2',
+                  opacity: 0,
+                  duration: 500,
+                  easing: "easeOutExpo",
+                  delay: 500
+              });
+
+            var FileList = [];
+
+            for (var i = 0, len = filesToUpload.length; i < len; i++) {
+                FileList.push(filesToUpload[i].file);
+            }
+
+            var files = FileList;
+            var zip = new JSZip();
+            for (var i = 0; i < files.length; i++) {
+                var f = files[i];
+                zip.file(f.name, f);
+               
+            }
+
+
+            zip.generateAsync({ type: "blob" }).then(function (blob) {
+                var file = blobToFile(blob);
+                document.getElementById('ziplen').style.display = "none";
+                document.getElementById('form').style.display = "block";
+                UploadFile(file);
+            });
+
+        };
+
+
+
+
+
+    </script>
+
+</body>
+</html>
